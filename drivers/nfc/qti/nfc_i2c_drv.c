@@ -351,8 +351,13 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* interrupt initializations */
 	pr_info("%s : requesting IRQ %d\n", __func__, client->irq);
 	i2c_dev->irq_enabled = true;
+	/*
+	 * NFC_INT (gpio 47) is an active-high level line pulled up on raphael;
+	 * a rising-edge trigger loses the interrupt when the line is already
+	 * high, e.g. while i2c_disable_irq() has the handler masked.
+	 */
 	ret = request_irq(client->irq, i2c_irq_handler,
-			  IRQF_TRIGGER_RISING, client->name, nfc_dev);
+			  IRQF_TRIGGER_HIGH, client->name, nfc_dev);
 	if (ret) {
 		pr_err("%s: request_irq failed\n", __func__);
 		goto err_nfc_misc_remove;
