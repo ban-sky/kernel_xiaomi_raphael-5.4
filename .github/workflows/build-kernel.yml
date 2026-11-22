@@ -1,0 +1,62 @@
+name: build-raphael-5.4
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison flex libssl-dev libelf-dev device-tree-compiler \
+            clang lld llvm gcc-aarch64-linux-gnu make
+
+      - name: Show toolchain versions
+        run: |
+          clang --version | head -1
+          ld.lld --version | head -1
+          aarch64-linux-gnu-gcc --version | head -1
+
+      - name: Configure (raphael_defconfig)
+        run: |
+          make -j"$(nproc)" O=out ARCH=arm64 \
+            CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm \
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            raphael_defconfig
+
+      - name: Build Image and dtbs
+        run: |
+          make -j"$(nproc)" O=out ARCH=arm64 \
+            CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm \
+            OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            Image dtbs
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp out/arch/arm64/boot/Image artifacts/ 2>/dev/null || true
+          cp out/arch/arm64/boot/dts/qcom/*.dtb artifacts/ 2>/dev/null || true
+          cp out/arch/arm64/boot/dts/qcom/*.dtbo artifacts/ 2>/dev/null || true
+          cp out/.config artifacts/config-raphael 2>/dev/null || true
+          ls -lh artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raphael-5.4-image
+          path: artifacts/
+          if-no-files-found: warn
