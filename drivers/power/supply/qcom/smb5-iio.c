@@ -60,6 +60,11 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 		if (!rc)
 			*val = pval.intval;
 		break;
+	case PSY_IIO_INPUT_CURRENT_NOW:
+		rc = smblib_get_prop_usb_current_now(chg, &pval);
+		if (!rc)
+			*val = pval.intval;
+		break;
 	case PSY_IIO_PD_IN_HARD_RESET:
 		rc = smblib_get_prop_pd_in_hard_reset(chg, val);
 		break;

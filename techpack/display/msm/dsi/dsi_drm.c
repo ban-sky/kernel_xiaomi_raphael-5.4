@@ -438,6 +438,13 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 		return;
 	}
 
+	if (c_bridge->dsi_mode.dsi_mode_flags &
+			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR |
+			 DSI_MODE_FLAG_DYN_CLK)) {
+		DSI_DEBUG("[%d] seamless disable\n", c_bridge->id);
+		return;
+	}
+
 	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
 	notify_data.data = &power_mode;
 	notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
