@@ -108,9 +108,8 @@ jobs:
           EOF
 
           cp out/arch/arm64/boot/Image ak3/Image
-          if [ -f out/arch/arm64/boot/dts/qcom/dtbo.img ]; then
-            cp out/arch/arm64/boot/dts/qcom/dtbo.img ak3/dtbo.img
-          fi
+          # 刻意不打包 dtbo.img：boot 里的 dtb 与 ROM 的 dtbo 必须同代，覆盖 ROM 的 dtbo 反而可能开不了机。
+          # 需要单独处理 dtbo 的用户从 artifact raphael-*-image 里取 dtbo.img。
           (cd ak3 && zip -r9 "../${ZIPNAME}" . -x '*.git*')
           sha256sum "${ZIPNAME}" > "${ZIPNAME}.sha256"
           ls -lh "${ZIPNAME}" "${ZIPNAME}.sha256"
@@ -125,9 +124,9 @@ jobs:
           unzip -l "$ZIP" | grep -q ' anykernel.sh$' || { echo "ERROR: anykernel.sh missing"; exit 1; }
           unzip -l "$ZIP" | grep -q ' tools/ak3-core.sh$' || { echo "ERROR: tools/ak3-core.sh missing"; exit 1; }
           if unzip -l "$ZIP" | grep -q ' dtbo.img$'; then
-            echo "OK: dtbo.img present, ak3 will flash dtbo partition"
+            echo "WARNING: unexpected dtbo.img in zip"
           else
-            echo "WARNING: dtbo.img absent, only boot will be flashed"
+            echo "OK: no dtbo.img shipped (keeps ROM dtbo intact)"
           fi
 
       - name: Upload flashable zip

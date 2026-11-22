@@ -30,6 +30,19 @@ Redmi K20 Pro / Mi 9T Pro（代号 **raphael**，SM8150）的 5.4 第三方内�
    - 说明：vb2 的 `vb2_queue_init()` 本身会把 0 补成 `sizeof(struct vb2_v4l2_buffer)`，所以这条不是修 bug，只是把依赖显式化。
 5. **QC3 18W 不上报**（P1）
    - `drivers/power/supply/qcom/smb5-lib.c`：class A（18W）分支补 `power_supply_changed(chg->usb_psy)`；class B 本来就有。之前 `HVDCP3_TYPE` 会一直停在 NONE，用户态看不到 18W。
+6. **`input_current_now` 恒 0 + 刷屏**（P1）
+   - `drivers/power/supply/qcom/smb5-iio.c`：补 `case PSY_IIO_INPUT_CURRENT_NOW`，走 `smblib_get_prop_usb_current_now()`（`smb5-lib.c:5110`，读 `chg->iio.usbin_i_chan` 并做 buck/boost 缩放）。原先这个通道没有 case，恒返回 `-EINVAL`，`usb_cur_in` 恒 0 且每轮 reg_work 打印 `get prop 6 is not supported`。
+7. **ESD IRQ 计数不平衡 + 裸改 istate**（P1）
+   - `techpack/display/msm/dsi/dsi_panel.c`：`irq_to_desc()` 判空再动 `istate`；disable 前查 `irqd_irq_disabled()`，避免重复 `disable_irq_nosync()`。
+   - `techpack/display/msm/dsi/dsi_drm.c`：`dsi_bridge_disable()` 对 seamless/VRR/dyn-clk 模式提前返回，与 enable 对称。之前 enable 早返回、disable 却照样关 ESD IRQ，seamless 模式下 ESD 保护等于永久失效。
+8. **KernelSU branch-link 与 CFI 冲突风险**（P1）
+   - `arch/arm64/configs/raphael_defconfig`：关掉 `CONFIG_KSU_HACK_ARM64_BRANCH_LINK`（该 Kconfig 自述 "NOT recommended for pre-4.17 kernels"，且 `CONFIG_CFI_CLANG=y` 并存时 inline 改写 text 可能触发 CFI trap）。KSU 仍走 LSM hooks。
+
+## 版本与产物
+
+- 版本串（`CONFIG_LOCALVERSION`）：`-Zundamon-1.0-rc1`，`uname -r` 为 **`5.4.302-Zundamon-1.0-rc1`**。
+- 刷机包：`Zundamon-5.4.302-1.0-rc1.zip`（AnyKernel3 结构，只替换 boot 里的 kernel）。**不含 `dtbo.img`**：boot 的 dtb 必须和 ROM 的 dtbo 同代，覆盖 ROM 的 dtbo 容易开不了机，dtbo 镜像单独放在 `raphael-5.4-image` artifact 里备用。命名规则 `Zundamon-<内核版本>-<版本号>[-rcN]`，workflow 顶部的 `KNAME/KVERNUM/KSTAGE` 三个 env 控制。
+- Actions 里下载 artifact `Zundamon-5.4.302-1.0-rc1`，同一目录下有 `.sha256`。
 
 ## 构建
 
@@ -58,3 +71,5 @@ CI 只证明**能编过**（`Image`/dtb/dtbo 生成、内核镜像打包成功�
 - 内核必须与 ROM 的 vendor 匹配；5.4 不要盖在 4.14 的移植包上（社区明确 "clean flash required — new kernel generation"）。
 - 刷前备份 `boot` / `dtbo`；有 ramoops 的话，出事能拿到 `console-ramoops`。
 - 确认版本：`magiskboot unpack boot.img` 或 `unpack_bootimg --boot_img boot.img` 看 `kernel` 的版本串。
+- 包是 AnyKernel3：TWRP/OrangeFox 里直接刷 zip，脚本会 dump 现有 boot、替换 kernel；zip 里**不含** `dtbo.img`，dtbo 分区保持 ROM 原样；需要单独刷 dtbo 的从 `raphael-5.4-image` artifact 取。
+- CI 打包后会跑 `unzip -l` 校验 `Image`、`anykernel.sh`、`tools/ak3-core.sh` 都在，缺一个就直接判失败，所以绿色运行的包至少结构是完整的。
